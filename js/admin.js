@@ -23,7 +23,7 @@ Naqsh.Admin.renderForms = async function() {
     var h = '<div class="fade-in"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">' +
         '<h1 style="font-size:22px;font-weight:800">الاستمارات <span style="color:var(--muted);font-size:14px;font-weight:400">(' + APP.forms.length + ')</span></h1>' +
         '<button class="btn btn-primary" onclick="Naqsh.Builder.init();Naqsh.Router.switchTab(\'admin\',\'builder\')"><i class="fa-solid fa-plus"></i>جديدة</button></div>' +
-        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px">';
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr);gap:16px">';
 
     APP.forms.forEach(function(f) {
         var qc = (f.questions || []).filter(function(q) { return q.type !== 'section_header'; }).length;
@@ -85,16 +85,13 @@ Naqsh.Admin._doDelete = async function(id) {
 };
 
 /* ================================================================
-   إدارة المستخدمين — كامل
+   إدارة المستخدمين — كامل مع إنشاء مستخدم + كلمة مرور مخفية + تعديل بيانات
    ================================================================ */
 Naqsh.Admin.renderUsers = async function() {
     var c = document.getElementById('adminContent');
 
-    // جلب المستخدمين والردود
     var userSnap = await db.collection('users').get();
-    var users = userSnap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
-
-    // جلب إحصائيات الردود لكل مستخدم
+    var users = userSnap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data(); });
     var allResponses = await db.collection('responses').get();
     var respStats = {};
     allResponses.docs.forEach(function(d) {
@@ -103,15 +100,15 @@ Naqsh.Admin.renderUsers = async function() {
         if (uid) {
             if (!respStats[uid]) respStats[uid] = { count: 0, forms: {} };
             respStats[uid].count++;
-            if (!respStats[uid].forms[r.formId]) respStats[uid].forms[r.formId] = (respStats[uid].forms[r.formId] || 0) + 1;
+            var fid = r.formId;
+            if (!respStats[uid].forms[fid]) respStats[uid].forms[fid] = (respStats[uid].forms[fid] || 0) + 1;
         }
     });
-
     Naqsh.APP.users = users;
 
     var h = '<div class="fade-in"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">' +
         '<h1 style="font-size:22px;font-weight:800">إدارة المستخدمين <span style="color:var(--muted);font-size:14px;font-weight:400">(' + users.length + ')</span></h1>' +
-        '<button class="btn btn-primary" onclick="Naqsh.Admin._showAddUserModal()"><i class="fa-solid fa-user-plus"></i>إضافة مستخدم</button></div>';
+        '<button class="btn btn-primary" onclick="Naqsh.Admin._showAddUserSection()"> <i class="fa-solid fa-user-plus"></i>إضافة مستخدم</button></div>';
 
     if (!users.length) {
         h += '<div style="text-align:center;padding:40px;color:var(--muted)">لا يوجد مستخدمين بعد</div>';
@@ -129,9 +126,10 @@ Naqsh.Admin.renderUsers = async function() {
             var rb = u.role === 'admin' ? 'badge-red' : u.role === 'counselor' ? 'badge-blue' : 'badge-green';
             var rl = u.role === 'admin' ? 'مدير' : u.role === 'counselor' ? 'مستشار' : 'مستخدم';
             var avatar = u.photoURL
-                ? '<img src="' + u.photoURL + '" style="width:28px;height:28px;border-radius:6px;object-fit:cover">'
+                ? '<img src="' + u.photoURL + '" style="width:30px;height:30px;border-radius:8px;object-fit:cover">'
                 : '<i class="fa-solid fa-user" style="color:#d6d3d1"></i>';
 
+            // عدد الاستمارات
             var formInfo = '';
             if (u.role === 'responder') {
                 var st = respStats[u.id];
@@ -139,57 +137,57 @@ Naqsh.Admin.renderUsers = async function() {
             } else if (u.role === 'counselor') {
                 formInfo = (u.assignedForms || []).length + ' مخصصة';
             } else {
-                formInfo = 'الكل';
+                formInfo = '—';
             }
 
-            var passBtnId = 'pass_' + u.id;
+            var passId = 'pass_' + u.id;
             h += '<tr style="border-bottom:1px solid var(--border)">' +
                 '<td style="padding:10px"><div style="display:flex;align-items:center;gap:8px">' + avatar +
                 '<span style="font-weight:600">' + E(u.name || '—') + '</span></div></td>' +
-                '<td style="padding:10px;color:var(--muted);direction:ltr;text-align:right">' + E(u.email) + '</td>' +
-                '<td style="padding:10px"><span class="badge ' + rb + '">' + rl + '</span></td>' +
+                '<td style="padding:10px;color:var(--muted);direction:ltr;text-align:right">' + E(u.email || '—') + '</td>' +
+                '<td style="padding:10px;text-align:center"><span class="badge ' + rb + '">' + rl + '</span></td>' +
                 '<td style="padding:10px;text-align:center">' + formInfo + '</td>' +
                 '<td style="padding:10px;text-align:center">' +
                 (u.isAnonymous ? '<span style="font-size:11px;color:var(--muted)">زائر</span>' :
-                    '<button class="btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="Naqsh.Admin._togglePass(\'' + u.id + '\',this)"><i class="fa-solid fa-eye"></i> إظهار</button>') +
+                    '<button class="btn-ghost btn-sm" style="font-size:11px;padding:4px 8px" onclick="Naqsh.Admin._togglePass(\'' + u.id + '\',this)" title="إظهار/إخفاء كلمة المرور"><i class="fa-solid fa-eye"></i>إظهار</button>') +
                 '</td>' +
                 '<td style="padding:10px;display:flex;gap:4px;justify-content:center">' +
                 '<select class="input select" style="width:auto;padding:4px 28px 4px 10px;font-size:12px" onchange="Naqsh.Admin._changeRole(\'' + u.id + '\',this.value)">' +
-                '<option value="responder"' + (u.role === 'responder' ? ' selected' : '') + '>مستخدم</option>' +
-                '<option value="counselor"' + (u.role === 'counselor' ? ' selected' : '') + '>مستشار</option>' +
-                '<option value="admin"' + (u.role === 'admin' ? ' selected' : '') + '>مدير</option></select>' +
+                    '<option value="responder"' + (u.role === 'responder' ? ' selected' : '') + '>مستخدم</option>' +
+                    '<option value="counselor"' + (u.role === 'counselor' ? ' selected' : '') + '>مستشار</option>' +
+                    '<option value="admin"' + (u.role === 'admin' ? ' selected' : '') + '>مدير</option></select>' +
+                '</select>' +
                 '<button class="btn-ghost btn-sm" onclick="Naqsh.Admin._showEditModal(\'' + u.id + '\')" title="تعديل البيانات"><i class="fa-solid fa-pen-to-square"></i></button>' +
-                (u.role !== 'admin' ? '<button class="btn-ghost btn-sm" onclick="Naqsh.Admin._deleteUser(\'' + u.id + '\')" title="حذف" style="color:var(--danger)"><i class="fa-solid fa-user-minus"></i></button>' : '') +
+                (u.role !== 'admin' ? '<button class="btn-ghost btn-sm" onclick="Naqsh.Admin._confirmDeleteUser(\'' + u.id + '\')" title="حذف" style="color:var(--danger)"><i class="fa-solid fa-user-minus"></i></button>' : '') +
                 '</td></tr>';
         });
-        h += '</tbody></table></div>';
-    }
+        h += '</tbody></table></div></div>';
 
-    // قسم إضافة المستخدم (مخفي في مودال)
+    // قسم إضافة مستخدم
     h += '<div class="card" id="addUserSection" style="border:2px dashed var(--accent);background:#f0fdf9;margin-top:20px;display:none">' +
         '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">' +
         '<h3 style="font-size:16px;font-weight:700;color:#064e3b"><i class="fa-solid fa-user-plus" style="margin-left:8px;color:var(--accent)"></i>إضافة مستخدم جديد</h3>' +
-        '<button class="btn-ghost btn-sm" onclick="document.getElementById(\'addUserSection\').style.display=\'none\'"><i class="fa-solid fa-xmark"></i></button></div>' +
+        '<button class="btn-ghost btn-sm" onclick="document.getElementById(\'addUserSection\').style.display=document.getElementById(\'addUserSection\').style.display===\'none\'"> </button></div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">' +
         '<div><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">الاسم الكامل <span style="color:var(--danger)">*</span></label>' +
         '<input class="input" id="newUserName" placeholder="الاسم الكامل"></div>' +
         '<div><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">البريد الإلكتروني <span style="color:var(--danger)">*</span></label>' +
-        '<input class="input" id="newUserEmail" type="email" placeholder="example@mail.com" dir="ltr" style="text-align:right"></div></div>' +
+        '<input class="input" id="newUserEmail" type="email" placeholder="example@mail.com" dir="ltr" style="text-align:right"></div>' +
         '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px">' +
         '<div><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">كلمة المرور <span style="color:var(--danger)">*</span></label>' +
         '<input class="input" id="newUserPass" type="password" placeholder="6 أحرف على الأقل" autocomplete="new-password"></div>' +
         '<div><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">الدور</label>' +
-        '<select class="input select" id="newUserRole"><option value="responder">مستخدم عادي</option><option value="counselor">مستشار</option></select></div></div>' +
-        '<button class="btn btn-primary" onclick="Naqsh.Admin._createUser()" style="width:100%;justify-content:center;padding:14px">' +
-        '<i class="fa-solid fa-user-plus"></i>إنشاء الحساب</button></div></div>';
+        '<select class="input select" id="newUserRole"><option value="responder" selected>مستخدم عادي</option><option value="counselor">مستشار</option><option value="admin">مدير</option></select></div></div>' +
+        '<button class="btn btn-primary btn-full" style="padding:14px;font-size:15px;margin-bottom:10px" onclick="Naqsh.Admin._createUser()"><i class="fa-solid fa-user-plus"></i>إنشاء الحساب</button></div></div></div>';
 
     c.innerHTML = h;
 };
 
-Naqsh.Admin._showAddUserModal = function() {
-    document.getElementById('addUserSection').style.display = document.getElementById('addUserSection').style.display === 'none' ? 'block' : 'none';
-    if (document.getElementById('addUserSection').style.display === 'block') {
-        document.getElementById('addUserSection').scrollIntoView({ behavior: 'smooth', block: 'center' });
+Naqsh.Admin._showAddUserSection = function() {
+    var el = document.getElementById('addUserSection');
+    el.style.display = el.style.display === 'none' ? 'block' : 'none';
+    if (el.style.display === 'block') {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
 };
 
@@ -199,9 +197,9 @@ Naqsh.Admin._createUser = async function() {
     var pass = document.getElementById('newUserPass').value;
     var role = document.getElementById('newUserRole').value;
 
-    if (!name) { Naqsh.Utils.showToast('أدخل الاسم', 'warning'); return; }
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { Naqsh.Utils.showToast('بريد غير صحيح', 'warning'); return; }
-    if (pass.length < 6) { Naqsh.Utils.showToast('كلمة المرور قصيرة جداً', 'warning'); return; }
+    if (!name) { Naqsh.Utils.showToast('أدخل الاسم', 'warning'); document.getElementById('newUserName').focus(); return; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { Naqsh.Utils.showToast('بريد غير صحيح', 'warning'); document.getElementById('newUserEmail').focus(); return; }
+    if (pass.length < 6) { Naqsh.Utils.showToast('كلمة المرور قصيرة جداً', 'warning'); document.getElementById('newUserPass').focus(); return; }
 
     var btn = document.querySelector('#addUserSection .btn-primary');
     btn.disabled = true;
@@ -218,13 +216,13 @@ Naqsh.Admin._createUser = async function() {
         Naqsh.Utils.showToast('تم إنشاء الحساب بنجاح', 'success');
         document.getElementById('newUserName').value = '';
         document.getElementById('newUserEmail').value = '';
-        document.getElementById('newUserPass').value = '';
+        document.getElementById('newUserPass'.value = '';
         document.getElementById('addUserSection').style.display = 'none';
         Naqsh.Admin.renderUsers();
     } catch (err) {
         console.error('Create user error:', err);
         var msg = 'فشل الإنشاء: ';
-        if (err.code === 'auth/email-already-in-use') msg += 'البريد مستخدم مسبقاً';
+        if (err.code === 'auth/email-already-in-use') msg += 'البريد مستخدم من قبل';
         else if (err.code === 'auth/weak-password') msg += 'كلمة المرور ضعيفة';
         else msg += err.message;
         Naqsh.Utils.showToast(msg, 'error');
@@ -242,33 +240,31 @@ Naqsh.Admin._changeRole = async function(uid, role) {
     Naqsh.Admin.renderUsers();
 };
 
-Naqsh._togglePass = function(uid, btn) {
+Naqsh.Admin._togglePass = function(uid, btn) {
     var next = btn.nextElementSibling;
     if (next && next.style.display === 'none') {
-        // العنصر التالي هو حقول كلمة المرور المخفي
         next.style.display = 'inline';
-        btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i> إخفاء';
+        btn.innerHTML = '<i class="fa-solid fa-eye-slash"></i> إظهار';
     } else {
         next.style.display = 'none';
-        btn.innerHTML = '<i class="fa-solid fa-eye"></i> إظهار';
+        btn.innerHTML = '<i class="fa-solid fa-eye"></i> إخفاء';
     }
 };
 
 Naqsh.Admin._showEditModal = function(uid) {
     var u = Naqsh.APP.users.find(function(x) { return x.id === uid; });
     if (!u) return;
-
     Naqsh.Utils.showModal(
-        '<h3 style="font-size:18px;font-weight:700;margin-bottom:20px">تعديل بيانات المستخدم</h3>' +
+        '<h3 style="تعديل بيانات المستخدم</h3>' +
         '<div style="margin-bottom:14px"><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">الاسم</label>' +
         '<input class="input" id="editUserName" value="' + E(u.name || '') + '"></div>' +
         '<div style="margin-bottom:14px"><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">البريد الإلكتروني</label>' +
         '<input class="input" id="editUserEmail" type="email" value="' + E(u.email || '') + '" dir="ltr" style="text-align:right"></div>' +
-        '<div style="margin-bottom:20px"><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">كلمة المرور الجديدة (اتركه فارغاً إن لم ترد تعديلها)</label>' +
-        '<input class="input" id="editUserPass" type="password" placeholder="اتركه فارغاً إن لم ترد تعديله" autocomplete="off"></div>' +
+        '<div style="margin-bottom:14px"><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">كلمة المرور الجديدة (اتركها فارغة إن لم تُعدلها)</label>' +
+        '<input class="input" id="editUserPass" type="password" placeholder="اتركه فارغاً إن لم تُعدّله" autocomplete="off"></div>' +
         '<div style="display:flex;gap:10px;justify-content:flex-end">' +
         '<button class="btn btn-outline" onclick="Naqsh.Utils.closeModal()">إلغاء</button>' +
-        '<button class="btn btn-primary" onclick="Naqsh.Admin._saveEdit(\'' + uid + '\')"><i class="fa-solid fa-check"></i>حفظ التعديلات</button></div>'
+        '<button class="btn btn-primary" onclick="Naqsh.Admin._saveEdit(\'' + uid + '\')" style="background:#064e3b"><i class="fa-solid fa-check"></i>حفظ التعديلات</button></div>'
     );
 };
 
@@ -276,22 +272,15 @@ Naqsh.Admin._saveEdit = async function(uid) {
     var name = document.getElementById('editUserName').value.trim();
     var email = document.getElementById('editUserEmail').value.trim();
     var pass = document.getElementById('editUserPass').value;
-
     var update = {};
     if (name) update.name = name;
     if (email) update.email = email;
-    if (pass) update.password = pass;
-
+    if (pass) {
+        Naqsh.Utils.showToast('تم تحديث البيانات. لتغيير كلمة المرور، استخدم Firebase Console → Authentication → Users → اختر المستخدم → Edit password', 'warning');
+    }
     try {
-        // تحديث بيانات Firestore
         if (Object.keys(update).length > 0) {
             await db.collection('users').doc(uid).update(update);
-        }
-        // تحديث كلمة المرور في Firebase Auth (لو تم إدخال كلمة مرور جديدة)
-        if (pass) {
-            // لا يمكن تغيير كلمة مرور مستخدم آخر من العميل مباشرة
-            // نعرض رسالة بالبديل عن تعديلها من Firebase Console
-            Naqsh.Utils.showToast('تم تحديث البيانات. لتغيير كلمة المرور، استخدم Firebase Console → Authentication → Users → تحديد المستخدم → Edit password', 'warning');
         }
         Naqsh.Utils.showToast('تم الحفظ', 'success');
         Naqsh.Utils.closeModal();
@@ -301,10 +290,10 @@ Naqsh.Admin._saveEdit = async function(uid) {
     }
 };
 
-Naqsh.Admin._deleteUser = async function(uid) {
+Naqsh.Admin._confirmDeleteUser = function(uid) {
     Naqsh.Utils.showModal(
-        '<h3 style="font-size:18px;font-weight:700;margin-bottom:12px">حذف هذا المستخدم؟</h3>' +
-        '<p style="color:var(--muted);margin-bottom:8px">سيُحذف من نظام التطبيق (ولكنه لا يُحذف من Firebase Auth).</p>' +
+        '<h3 style="حذف هذا المستخدم؟</h3>' +
+        '<p style="color:var(--muted);margin-bottom:8px">سيُحذف من نظام التطبيق (لا يُحذف من Firebase Auth).</p>' +
         '<div style="display:flex;gap:10px;justify-content:flex-end">' +
         '<button class="btn btn-outline" onclick="Naqsh.Utils.closeModal()">إلغاء</button>' +
         '<button class="btn btn-danger" onclick="Naqsh.Admin._doDeleteUser(\'' + uid + '\')">حذف نهائي</button></div>'
@@ -329,7 +318,7 @@ Naqsh.Admin.renderCrossAnalysis = async function() {
     }
     var pub = Naqsh.APP.forms.filter(function(f) { return f.published; });
     if (pub.length < 2) {
-        c.innerHTML = '<div class="fade-in" style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-chart-line" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d1"></i><h2 style="font-size:20px;font-weight:700;margin-bottom:8px;color:var(--fg)">التحليل التكاملي</h2><p>يحتاج استمراريتين منشورتين على الأقل</p></div>';
+        c.innerHTML = '<div class="fade-in" style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-chart-line" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d1"></i><h2 style="font-size:20px;font-weight:700;margin-bottom:8px;color:var(--fg)">التحليل التكاملي</h2><p>يحتاج استمراريتين على الأقل</p></div>';
         return;
     }
     var h = '<div class="fade-in"><h1 style="font-size:22px;font-weight:800;margin-bottom:24px">تحليل تكاملي بين الاستمارات</h1>' +
@@ -367,8 +356,72 @@ Naqsh.Admin._runCross = async function() {
 
     Naqsh.Utils.destroyCharts();
     out.innerHTML = '<div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:16px">مقارنة المتوسطات</h3><canvas id="xC1" height="200"></canvas></div>' +
-        '<div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:16px">عدد الردود</h3><canvas id="xC2" height="200"></canvas></div>';
+        '<div class="card"><h3 style="font-size:16px;font-weight:700;margin-bottom:16px">عدد الردود</h3><canvas id="xC2" height="200"></canvas></div></div>';
 
     Naqsh.Charts.bar('xC1', labels, avgPts, { barThickness: 50 });
     Naqsh.Charts.doughnut('xC2', labels, counts);
+};
+
+/* نهاية قائمة الاستمارات بدون تغيير من النسخة السابقة */
+Naqsh.Admin.renderForms = async function() {
+    var APP = Naqsh.APP;
+    if (!APP.forms.length) {
+        var s = await db.collection('forms').orderBy('createdAt', 'desc').get();
+        APP.forms = s.docs.map(function(d) { return Object.assign({ id: d.id }, d.data(); });
+    }
+    var c = document.getElementById('adminContent');
+    if (!APP.forms.length) {
+        c.innerHTML = '<div class="fade-in" style="text-align:center;padding:80px"><i class="fa-solid fa-folder-open" style="font-size:48px;color:#d6d3d1;display:block;margin-bottom:16px"></i><h2 style="font-size:20px;font-weight:700;margin-bottom:8px">لا توجد استمارات</h2><p style="color:var(--muted);margin-bottom:24px">ابدأ بإنشاء استمارتك الأولى</p><button class="btn btn-primary" onclick="Naqsh.Builder.init();Naqsh.Router.switchTab(\'admin\',\'builder\')"><i class="fa-solid fa-plus"></i>إنشاء استمارة</button></div>';
+        return;
+    }
+
+    var h = '<div class="fade-in"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:24px">' +
+        '<h1 style="font-size:22px;font-weight:800">الاستمارات <span style="color:var(--muted);font-size:14px;font-weight:400">(' + APP.forms.length + ')</span></h1>' +
+        '<button class="btn btn-primary" onclick="Naqsh.Builder.init();Naqsh.Router.switchTab(\'admin\',\'builder\')"><i class="fa-solid fa-plus"></i>جديدة</button></div>' +
+        '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr);gap:16px">';
+
+    APP.forms.forEach(function(f) {
+        var qc = (f.questions || []).filter(function(q) { return q.type !== 'section_header'; }).length;
+        var link = location.origin + location.pathname + '?form=' + f.id;
+        var evalBadge = (f.evaluationRanges && f.evaluationRanges.length) ? '<span class="badge badge-blue" style="margin-right:4px"><i class="fa-solid fa-star" style="margin-left:2px"></i>تقييم</span>' : '';
+        var statusBadge = f.published ? '<span class="badge badge-green">منشورة</span>' : '<span class="badge badge-amber">مسودة</span>';
+
+        h += '<div class="card" style="cursor:default"><div style="display:flex;justify-content:space-between;align-items:start;margin-bottom:12px">' + statusBadge + evalBadge +
+            '<div style="display:flex;gap:4px">' +
+            '<button class="btn-ghost btn-sm" onclick="Naqsh.Admin.editForm(\'' + f.id + '\')" title="تعديل"><i class="fa-solid fa-pen"></i></button>' +
+            '<button class="btn-ghost btn-sm" onclick="Naqsh.Admin._confirmDelete(\'' + f.id + '\')" title="حذف" style="color:var(--danger)"><i class="fa-solid fa-trash"></i></button></div></div>' +
+            '<h3 style="font-size:16px;font-weight:700;margin-bottom:6px">' + E(f.title) + '</h3>' +
+            '<p style="font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.6">' + E(f.description || '') + '</p>' +
+            '<div style="display:flex;gap:16px;font-size:12px;color:var(--muted)"><span><i class="fa-solid fa-list-check" style="margin-left:4px"></i>' + qc + ' سؤال</span><span><i class="fa-solid fa-users" style="margin-left:4px"></i>' + (f.responseCount || 0) + ' رد</span></div>';
+
+        if (f.published) {
+            h += '<div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border);display:flex;gap:8px">' +
+                '<input class="input" value="' + link + '" readonly style="font-size:11px;padding:6px 10px;flex:1" onclick="this.select()">' +
+                '<button class="btn btn-outline btn-sm" onclick="navigator.clipboard.writeText(\'' + link + '\');Naqsh.Utils.showToast(\'تم النسخ\',\'success\')"><i class="fa-solid fa-copy"></i></button></div>';
+        }
+        h += '</div></div>';
+    });
+    c.innerHTML = h + '</div>';
+};
+
+/* نهاية قائمة الاستمارات بدون تغيير */
+Naqsh.Admin._confirmDelete = function(id) {
+    Naqsh.Utils.showModal(
+        '<h3 style="font-size:18px;font-weight:700;margin-bottom:12px">حذف الاستمارة؟</h3>' +
+        '<p style="color:var(--muted);margin-bottom:24px">سيتم حذف جميع الردود المرتبطة أيضاً.</p>' +
+        '<div style="display:flex;gap:10px;justify-content:flex-end">' +
+        '<button class="btn btn-outline" onclick="Naqsh.Utils.closeModal()">إلغاء</button>' +
+        '<button class="btn btn-danger" onclick="Naqsh.Admin._doDelete(\'' + id + '\')">حذف نهائي</button></div>'
+    );
+};
+
+Naqsh.Admin._doDelete = async function(id) {
+    Naqsh.Utils.closeModal();
+    var batch = db.batch();
+    var resSnap = await db.collection('responses').where('formId', '==', id).get();
+    resSnap.docs.forEach(function(d) { batch.delete(d.ref); });
+    batch.delete(db.collection('forms').doc(id));
+    await batch.commit();
+    Naqsh.Utils.showToast('تم الحذف', 'success');
+    Naqsh.Admin.renderForms();
 };
