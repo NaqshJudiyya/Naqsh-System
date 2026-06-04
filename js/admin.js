@@ -91,7 +91,7 @@ Naqsh.Admin.renderUsers = async function() {
     var c = document.getElementById('adminContent');
 
     var userSnap = await db.collection('users').get();
-    var users = userSnap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data(); });
+    var users = userSnap.docs.map(function(d) { return Object.assign({ id: d.id }, d.data()); });
     var allResponses = await db.collection('responses').get();
     var respStats = {};
     allResponses.docs.forEach(function(d) {
