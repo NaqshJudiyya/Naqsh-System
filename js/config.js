@@ -1,11 +1,13 @@
 /**
- * config.js — إعدادات Firebase والحالة العامة للتطبيق
+ * config.js — إعدادات Firebase والحالة العامة
  * ==================================================
- * ⚠️ استبدل القيم أدناه ببيانات مشروعك من Firebase Console
- *    Project Settings → Your apps → Web app → firebaseConfig
+ * ⚠️ استبدل القيم أدناه ببيانات مشروعك من:
+ *    Firebase Console → Project Settings → Your apps → Web
+ *
+ * لو لم تُعدّ Firebase بعد، التطبيق سيشتغل بدون أخطاء
+ * لكن المصادقة وإنشاء البيانات لن تعمل حتى تُعدّه.
  */
 
-// ===== إعدادات Firebase — استبدلها =====
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyA5I_uukcIg99WKfsPZ3sIvDzaZmj_AYD4",
@@ -17,11 +19,31 @@ const firebaseConfig = {
   measurementId: "G-Y80MT5H593"
 };
 
+// ===== تهيئة Firebase بأمان — لا ينهار لو الإعدادات مؤقتة خاطئة =====
+var auth = null;
+var db = null;
+
+if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length === 0) {
+    try {
+        firebase.initializeApp(firebaseConfig);
+        auth = firebase.auth();
+        db = firebase.firestore();
+        console.log('✅ Firebase جاهز');
+    } catch (err) {
+        console.warn('⚠️ Firebase لم يُهيأ بعد:', err.message);
+        console.warn('   التطبيق سيعمل بالوضع التجريبي لكن بدون مصادقة أو قاعدة بيانات.');
+    }
+} else if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
+    // Firebase تم تهيئته بالفعل (مثلاً من امتداد آخر)
+    auth = firebase.auth();
+    db = firebase.firestore();
+}
+
 // ===== بريد المدير المعتمد =====
-const ADMIN_EMAIL = 'NaqshJudiyya@gmail.com';
+var ADMIN_EMAIL = 'NaqshJudiyya@gmail.com';
 
 // ===== أنواع الأسئلة المتاحة =====
-const QUESTION_TYPES = [
+var QUESTION_TYPES = [
     { id: 'short_text',     label: 'نص قصير',           icon: 'fa-font',                      hasOptions: false, hasPoints: false },
     { id: 'paragraph',       label: 'نص طويل',           icon: 'fa-align-right',               hasOptions: false, hasPoints: false },
     { id: 'email',           label: 'بريد إلكتروني',     icon: 'fa-envelope',                  hasOptions: false, hasPoints: false },
