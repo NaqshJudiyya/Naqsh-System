@@ -6,7 +6,6 @@
  */
 
 // ===== إعدادات Firebase — استبدلها =====
-// Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
   apiKey: "AIzaSyA5I_uukcIg99WKfsPZ3sIvDzaZmj_AYD4",
@@ -17,10 +16,6 @@ const firebaseConfig = {
   appId: "1:1090657585429:web:144a5369a628057713011c",
   measurementId: "G-Y80MT5H593"
 };
-
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
 
 // ===== بريد المدير المعتمد =====
 const ADMIN_EMAIL = 'NaqshJudiyya@gmail.com';
