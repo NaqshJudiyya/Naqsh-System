@@ -6,7 +6,6 @@ window.Naqsh = window.Naqsh || {};
 Naqsh.PublicForm = {};
 var E = Naqsh.Utils.esc;
 
-// ===== تحميل الاستمارة =====
 Naqsh.PublicForm.load = async function() {
     var c = document.getElementById('publicContent');
     c.innerHTML = '<div style="text-align:center;padding:80px"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px;color:var(--accent)"></i></div>';
@@ -18,7 +17,7 @@ Naqsh.PublicForm.load = async function() {
         }
         var form = d.data();
         if (!form.published) {
-            c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-lock" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d3d1"></i><h2>غير متاحة حالياً</h2></div>';
+            c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-lock" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d1"></i><h2>غير متاحة حالياً</h2></div>';
             return;
         }
         var user = Naqsh.APP.user;
@@ -32,7 +31,6 @@ Naqsh.PublicForm.load = async function() {
     }
 };
 
-// ===== بواب التسجيل/الدخول =====
 Naqsh.PublicForm._showAuthGate = function(form) {
     var c = document.getElementById('publicContent');
     var saved = null;
@@ -56,30 +54,18 @@ Naqsh.PublicForm._showAuthGate = function(form) {
         '<div style="margin-bottom:16px"><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">كلمة المرور <span style="color:var(--danger)">*</span></label>' +
         '<input class="input" id="gatePass" type="password" placeholder="6 أحرف على الأقل" autocomplete="new-password"></div>' +
         '<div id="gateError" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#dc2626"></div>' +
-        '<button class="btn btn-primary btn-full" style="padding:14px;font-size:15px;margin-bottom:10px" id="gateBtn">' +
+        '<button class="btn btn-primary btn-full" style="padding:14px;font-size:15px;margin-bottom:10px" id="gateBtn" onclick="Naqsh.PublicForm._handleAuth()">' +
         '<i class="fa-solid fa-arrow-left"></i>متابعة وملء الاستمارة</button>' +
         '</div>' +
         '<div style="display:flex;align-items:center;gap:6px;justify-content:center;font-size:11px;color:var(--muted)"><i class="fa-solid fa-lock" style="font-size:10px"></i>بياناتك محمية ولا تُشارك مع أي طرف</div>' +
         '</div></div>';
     c.innerHTML = h;
-
-    // تنقل Enter بين الحقول
-    ['gateName', 'gateEmail', 'gatePass'].forEach(function(id, i, arr) {
-        var el = document.getElementById(id);
-        if (el) el.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                var next = arr[i + 1];
-                if (next) document.getElementById(next).focus();
-                else document.getElementById('gateBtn').click();
-            }
-        });
-    });
 };
 
 Naqsh.PublicForm._handleAuth = async function() {
     var name = document.getElementById('gateName').value.trim();
     var email = document.getElementById('gateEmail').value.trim();
-    var pass = document.getElementById('Pass').value;
+    var pass = document.getElementById('gatePass').value;
     var errEl = document.getElementById('gateError');
     errEl.style.display = 'none';
 
@@ -92,28 +78,24 @@ Naqsh.PublicForm._handleAuth = async function() {
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جارٍ التحقق...';
 
     try {
-        // محاولة تسجيل الدخول أولاً
-        var credential = firebase.auth.EmailAuthProvider.credential(email, pass);
         try {
-            var result = await auth.signInWithCredential(credential);
+            var result = await auth.signInWithEmailAndPassword(email, pass);
             var uid = result.user.uid;
             var doc = await db.collection('users').doc(uid).get();
-            if (!doc.exists) {
+            if (doc.exists) {
+                await db.collection('users').doc(uid).update({ name: name });
+            } else {
                 await db.collection('users').doc(uid).set({
                     name: name, email: email, role: 'responder',
                     assignedForms: [], photoURL: '', isAnonymous: false,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
-            } else {
-                await db.collection('users').doc(uid).update({ name: name });
             }
             Naqsh.APP.user = result.user;
             Naqsh.APP.userData = Object.assign({}, doc.exists ? doc.data() : {}, { name: name, email: email, role: 'responder', isAnonymous: false });
             localStorage.setItem('naqsh_visitor', JSON.stringify({ uid: uid, name: name, email: email, ts: Date.now() }));
             Naqsh.PublicForm._renderForm((await db.collection('forms').doc(Naqsh.APP.publicFormId).get()).data());
-
         } catch (signInErr) {
-            // الدخول فشل → الحساب غير موجود → سجّل جديد
             if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential' || signInErr.code === 'auth/wrong-password') {
                 try {
                     var result = await auth.createUserWithEmailAndPassword(email, pass);
@@ -146,7 +128,6 @@ Naqsh.PublicForm._handleAuth = async function() {
     }
 };
 
-// ===== عرض الفورم =====
 Naqsh.PublicForm._renderForm = function(form) {
     var c = document.getElementById('publicContent');
     var qs = form.questions || [];
@@ -233,9 +214,10 @@ Naqsh.PublicForm._renderForm = function(form) {
             });
             h += '</tbody></table></div>';
         }
-        h += '</div>';
+        h += '</div>'; // إغلاق كرت السؤال
+    });
 
-    // زر الإرسال — باستخدام addEventListener بدل onclick لتجنب مشاكل escape
+    // زر الإرسال خارج حلقة الأسئلة!
     h += '<button class="btn btn-primary" id="submitBtn" type="button" style="width:100%;padding:16px;font-size:16px;margin-top:8px;justify-content:center">' +
         '<i class="fa-solid fa-paper-plane"></i>إرسال الإجابات</button>' +
         '<p style="text-align:center;font-size:11px;color:var(--muted);margin-top:16px">نشكرك على وقتك</p></div>';
@@ -243,12 +225,11 @@ Naqsh.PublicForm._renderForm = function(form) {
     c.innerHTML = h;
     Naqsh.PublicForm._updateProg();
 
-    // ربط زر الإرسال — آمنع مشاكل escaping
     document.getElementById('submitBtn').addEventListener('click', function() {
-    Naqsh.PublicForm._submit(form.id); });
+        Naqsh.PublicForm._submit(form.id);
+    });
 };
 
-// ===== دوال اختيار الأسئلة =====
 Naqsh.PublicForm._selRadio = function(el, qi, val, pts) {
     window._pubSel[qi] = { value: val, points: pts };
     el.parentElement.querySelectorAll('.radio-opt').forEach(function(o) { o.classList.remove('selected'); });
@@ -309,7 +290,6 @@ Naqsh.PublicForm._updateProg = function() {
     if (bar) bar.style.width = (t ? Math.round(a / t * 100) : 0) + '%';
 };
 
-// ===== الإرسال — محميون من أخطاء مع تحميل مرئي =====
 Naqsh.PublicForm._submit = function(formId) {
     var btn = document.getElementById('submitBtn');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جارٍ الإرسال...'; }
@@ -382,7 +362,6 @@ Naqsh.PublicForm._submit = function(formId) {
                 answers.push(ans);
             }
 
-            // حساب التقييم
             var respEmail = Naqsh.APP.userData ? Naqsh.APP.userData.email : '';
             var respName = Naqsh.APP.userData ? Naqsh.APP.userData.name : '';
             qs.forEach(function(q, qi) {
@@ -403,7 +382,6 @@ Naqsh.PublicForm._submit = function(formId) {
             }
             if (!evalResult.label && form.postSubmissionMessage) evalResult.message = form.postSubmissionMessage;
 
-            // الحفظ
             var ref = await db.collection('responses').add({
                 formId: formId,
                 respondentUid: Naqsh.APP.user ? Naqsh.APP.user.uid : null,
