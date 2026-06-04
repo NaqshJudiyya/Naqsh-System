@@ -1,37 +1,158 @@
 /**
- * public-form.js — واجهة ملء الاستمارة العامة + الإرسال
+ * public-form.js — واجهة ملء الاستمارة
+ * التغيير الأساسي: لا تتطلب تسجيل دخول مسبق
+ * يعرض بطاقة "تعريف سريع" ثم يسجّل تلقائياً بالخلفية
  */
 
 window.Naqsh = window.Naqsh || {};
 Naqsh.PublicForm = {};
 var E = Naqsh.Utils.esc;
 
+/**
+ * نقطة الدخول: تحميل الاستمارة
+ */
 Naqsh.PublicForm.load = async function() {
     var c = document.getElementById('publicContent');
     c.innerHTML = '<div style="text-align:center;padding:80px"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px;color:var(--accent)"></i></div>';
+
     try {
         var d = await db.collection('forms').doc(Naqsh.APP.publicFormId).get();
-        if (!d.exists) { c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-circle-exclamation" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d1"></i><h2>الاستمارة غير موجودة</h2></div>'; return; }
-        var f = d.data();
-        if (!f.published) { c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-lock" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d1"></i><h2>غير متاحة حالياً</h2></div>'; return; }
-        Naqsh.PublicForm._render(f);
-    } catch (e) { c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--danger)"><h2>خطأ: ' + E(e.message) + '</h2></div>'; }
+        if (!d.exists) {
+            c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-circle-exclamation" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d1"></i><h2>الاستمارة غير موجودة</h2><p style="color:var(--muted);margin-top:8px">تأكد من صحة الرابط</p></div>';
+            return;
+        }
+        var form = d.data();
+        if (!form.published) {
+            c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-lock" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d1"></i><h2>غير متاحة حالياً</h2></div>';
+            return;
+        }
+
+        // ===== هل المستخدم مسجل بالفعل؟ =====
+        var user = Naqsh.APP.user;
+        if (user && !user.isAnonymous) {
+            // مسجل بحساب حقيقي (جوجل/بريد) → اعرض الفورم مباشرة
+            Naqsh.PublicForm._renderForm(form);
+        } else {
+            // غير مسجل → اظهر بطاقة التعريف السريع
+            Naqsh.PublicForm._showIdentityCard(form);
+        }
+    } catch (err) {
+        c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--danger)"><i class="fa-solid fa-triangle-exclamation" style="font-size:48px;display:block;margin-bottom:16px"></i><h2>خطأ في التحميل</h2><p style="font-size:13px;margin-top:8px;color:var(--muted)">' + E(err.message) + '</p><p style="font-size:12px;margin-top:12px;color:var(--muted)">إذا استمرت المشكلة، تأكد من إعداد Firebase بشكل صحيح</p></div>';
+    }
 };
 
-Naqsh.PublicForm._render = function(form) {
+/**
+ * بطاقة التعريف السريع — تظهر لغير المسجلين
+ */
+Naqsh.PublicForm._showIdentityCard = function(form) {
+    var c = document.getElementById('publicContent');
+
+    // هل لدينا بيانات محفوظة من قبل؟
+    var saved = null;
+    try { saved = JSON.parse(localStorage.getItem('naqsh_visitor')); } catch(e) {}
+    // نتجاهل البيانات المحفوظة إذا مرّ أكثر من 30 يوماً
+    if (saved && (Date.now() - saved.ts) > 30 * 24 * 60 * 60 * 1000) saved = null;
+
+    var h = '<div class="fade-in">' +
+        '<div class="card" style="max-width:460px;margin:40px auto;border-right:4px solid var(--accent)">' +
+        '<div style="text-align:center;margin-bottom:24px">' +
+        '<div style="width:64px;height:64px;border-radius:16px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;margin:0 auto 16px;font-size:26px;color:#fff;box-shadow:0 6px 20px rgba(13,124,102,.3)"><i class="fa-solid fa-clipboard-list"></i></div>' +
+        '<h1 style="font-size:22px;font-weight:900;margin-bottom:6px">' + E(form.title) + '</h1>' +
+        '<p style="font-size:13px;color:var(--muted);line-height:1.7">' + E(form.description || '') + '</p></div>' +
+
+        '<div style="background:var(--bg);border-radius:12px;padding:20px;margin-bottom:20px">' +
+        '<h3 style="font-size:15px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px"><i class="fa-solid fa-user-plus" style="color:var(--accent)"></i>بياناتك السريعة</h3>' +
+        '<p style="font-size:12px;color:var(--muted);margin-bottom:16px;line-height:1.7">لن underاجع على إنشاء حساب. فقط أدخل بياناتك للبدء.</p>' +
+        '<div style="margin-bottom:12px"><label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">الاسم <span style="color:var(--danger)">*</span></label>' +
+        '<input class="input" id="visitorName" type="text" placeholder="مثال: أحمد محمد" value="' + E(saved ? saved.name : '') + '"></div>' +
+        '<div style="margin-bottom:16px"><label style="font-size:13px;font-weight:600;display:block;margin-bottom:6px">البريد الإلكتروني <span style="color:var(--danger)">*</span></label>' +
+        '<input class="input" id="visitorEmail" type="email" placeholder="example@mail.com" value="' + E(saved ? saved.email : '') + '" dir="ltr" style="text-align:right"></div>' +
+        '<button class="btn btn-primary btn-full" style="padding:14px;font-size:15px" onclick="Naqsh.PublicForm._startFilling()"><i class="fa-solid fa-arrow-left"></i>ابدأ ملء الاستمارة</button>' +
+        '</div>' +
+
+        '<div style="display:flex;align-items:center;gap:8px;justify-content:center;font-size:11px;color:var(--muted)"><i class="fa-solid fa-lock"></i>جميع البيانات تُعامل بخصوصية تامة</div>' +
+        '</div></div>';
+
+    c.innerHTML = h;
+
+    // لو ضغط Enter في أحد الحقول
+    var nameInput = document.getElementById('visitorName');
+    var emailInput = document.getElementById('visitorEmail');
+    if (nameInput) nameInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') emailInput.focus(); });
+    if (emailInput) emailInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') Naqsh.PublicForm._startFilling(); });
+};
+
+/**
+ * بعد إدخال البيانات — سجّل تلقائياً واعرض الفورم
+ */
+Naqsh.PublicForm._startFilling = async function() {
+    var name = document.getElementById('visitorName').value.trim();
+    var email = document.getElementById('visitorEmail').value.trim();
+
+    if (!name) { Naqsh.Utils.showToast('أدخل اسمك', 'warning'); document.getElementById('visitorName').focus(); return; }
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        Naqsh.Utils.showToast('أدخل بريد إلكتروني صحيح', 'warning');
+        document.getElementById('visitorEmail').focus();
+        return;
+    }
+
+    // إظهار تحميل
+    var c = document.getElementById('publicContent');
+    c.innerHTML = '<div style="text-align:center;padding:120px"><i class="fa-solid fa-spinner fa-spin" style="font-size:28px;color:var(--accent)"></i><p style="color:var(--muted);margin-top:16px">جارٍ التسجيل التلقائي...</p></div>';
+
+    try {
+        // تسجيل دخول تلقائي كـ anonymous
+        var result = await Naqsh.Auth.autoSignInAsVisitor(name, email);
+        Naqsh.APP.user = result.user;
+        Naqsh.APP.userData = { name: name, email: email, role: 'responder', isAnonymous: true };
+
+        // تحميل الاستمارة وعرضها
+        var d = await db.collection('forms').doc(Naqsh.APP.publicFormId).get();
+        Naqsh.PublicForm._renderForm(d.data());
+    } catch (err) {
+        console.error('خطأ في التسجيل التلقائي:', err);
+        // حاول عرض الفورم حتى لو فشل التسجيل (البيانات ستُحفظ بدون UID)
+        try {
+            var d = await db.collection('forms').doc(Naqsh.APP.publicFormId).get();
+            Naqsh.PublicForm._renderForm(d.data());
+            Naqsh.Utils.showToast('تم فتح الاستمارة لكن قد لا تُحفظ بياناتك — سجّل دخولك', 'warning');
+        } catch(e2) {
+            c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--danger)"><h2>تعذر التحميل</h2><p style="font-size:13px;margin-top:8px">' + E(err.message) + '</p></div>';
+        }
+    }
+};
+
+/**
+ * عرض الفورم الفعلي (بعد التسجيل أو إذا كان مسجلاً مسبقاً)
+ */
+Naqsh.PublicForm._renderForm = function(form) {
     var c = document.getElementById('publicContent');
     var qs = form.questions || [];
     window._pubData = { formId: form.id, questions: qs };
     window._pubSel = {};
     window._pubChk = {};
 
+    // إذا كان مستخدماً عادياً، أظهر اسمه فوق الفورم
+    var userGreeting = '';
+    if (Naqsh.APP.user && !Naqsh.APP.user.isAnonymous) {
+        userGreeting = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 16px;background:var(--accent-light);border-radius:10px">' +
+            (Naqsh.APP.userData.photoURL ? '<img src="' + Naqsh.APP.userData.photoURL + '" style="width:32px;height:32px;border-radius:8px;object-fit:cover">' : '<i class="fa-solid fa-user" style="color:var(--accent);font-size:16px"></i>') +
+            '<span style="font-size:13px;font-weight:600;color:var(--accent-dark)">مرحباً، ' + E(Naqsh.APP.userData.name || '') + '</span></div>';
+    } else if (Naqsh.APP.user && Naqsh.APP.user.isAnonymous) {
+        userGreeting = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 16px;background:var(--bg);border-radius:10px">' +
+            '<i class="fa-solid fa-user" style="color:var(--muted);font-size:16px"></i>' +
+            '<span style="font-size:13px;font-weight:600;color:var(--fg)">' + E(Naqsh.APP.userData.name || '') + '</span></div>';
+    }
+
     var h = '<div class="fade-in"><div style="position:fixed;top:0;left:0;right:0;height:4px;background:var(--border);z-index:1000">' +
         '<div id="pubProg" style="height:100%;background:linear-gradient(90deg,var(--accent),var(--accent2));width:0%;transition:width .4s;border-radius:0 2px 2px 0"></div></div>' +
         '<div class="card" style="margin-bottom:24px;border-right:4px solid var(--accent)">' +
         '<h1 style="font-size:22px;font-weight:900;margin-bottom:8px">' + E(form.title) + '</h1>' +
         '<p style="font-size:14px;color:var(--muted);line-height:1.8">' + E(form.description || '') + '</p>' +
-        '<div style="margin-top:12px;font-size:11px;color:var(--muted)"><i class="fa-solid fa-lock" style="margin-left:4px"></i>خصوصية تامة</div></div>';
+        '<div style="margin-top:12px;font-size:11px;color:var(--muted)"><i class="fa-solid fa-lock" style="margin-left:4px"></i>خصوصية تامة</div></div>' +
+        userGreeting;
 
+    // ===== بناء أسئلة الفورم =====
     qs.forEach(function(q, qi) {
         if (q.type === 'section_header') {
             h += '<div style="margin:28px 0 16px;padding:12px 16px;background:linear-gradient(90deg,var(--accent),transparent);border-radius:10px"><h2 style="font-size:17px;font-weight:800;color:#fff">' + E(q.text) + '</h2></div>';
@@ -41,7 +162,13 @@ Naqsh.PublicForm._render = function(form) {
         h += '<div class="card" id="pq' + qi + '"><label style="font-size:15px;font-weight:600;display:block;margin-bottom:14px">' + req + E(q.text) + '</label>';
 
         if (['short_text', 'email', 'number'].indexOf(q.type) >= 0) {
-            h += '<input class="input" type="' + (q.type === 'email' ? 'email' : q.type === 'number' ? 'number' : 'text') + '" data-qi="' + qi + '" oninput="Naqsh.PublicForm._updateProg()">';
+            var inputType = q.type === 'email' ? 'email' : q.type === 'number' ? 'number' : 'text';
+            // إذا كان سؤال بريد والمستخدم anonymous، املأ البريد تلقائياً
+            var autoVal = '';
+            if (q.type === 'email' && Naqsh.APP.user && Naqsh.APP.user.isAnonymous && Naqsh.APP.userData.email) {
+                autoVal = ' value="' + E(Naqsh.APP.userData.email) + '" readonly';
+            }
+            h += '<input class="input" type="' + inputType + '" data-qi="' + qi + '" oninput="Naqsh.PublicForm._updateProg()"' + autoVal + '>';
         } else if (q.type === 'paragraph') {
             h += '<textarea class="input" rows="3" data-qi="' + qi + '" oninput="Naqsh.PublicForm._updateProg()"></textarea>';
         } else if (q.type === 'date') {
@@ -96,6 +223,8 @@ Naqsh.PublicForm._render = function(form) {
     Naqsh.PublicForm._updateProg();
 };
 
+// ===== باقي الدوال كما هي بدون تغيير =====
+
 Naqsh.PublicForm._selRadio = function(el, qi, val, pts) {
     window._pubSel[qi] = { value: val, points: pts };
     el.parentElement.querySelectorAll('.radio-opt').forEach(function(o) { o.classList.remove('selected'); });
@@ -149,6 +278,7 @@ Naqsh.PublicForm._updateProg = function() {
 Naqsh.PublicForm._submit = async function(formId) {
     if (!window._pubData) return;
     var qs = window._pubData.questions; var answers = []; var totalPoints = 0;
+
     for (var qi = 0; qi < qs.length; qi++) {
         var q = qs[qi]; if (q.type === 'section_header') { answers.push(null); continue; }
         if (q.required) {
@@ -170,10 +300,11 @@ Naqsh.PublicForm._submit = async function(formId) {
         else if (q.type === 'matrix') { var s = window._pubSel[qi]; if (s) { ans.value = s.value; ans.points = s.points; } }
         totalPoints += ans.points; answers.push(ans);
     }
-    var respEmail = Naqsh.APP.user ? Naqsh.APP.user.email : '';
+
+    var respEmail = Naqsh.APP.userData ? Naqsh.APP.userData.email : '';
+    var respName = Naqsh.APP.userData ? Naqsh.APP.userData.name : '';
     qs.forEach(function(q, qi) { if (q.type === 'email' && answers[qi] && answers[qi].value) respEmail = answers[qi].value; });
 
-    // حساب التقييم
     var fd = await db.collection('forms').doc(formId).get(); var form = fd.data();
     var evalResult = { label: '', message: '', color: '#0d7c66' };
     if (form.evaluationRanges && form.evaluationRanges.length) {
@@ -186,11 +317,39 @@ Naqsh.PublicForm._submit = async function(formId) {
 
     try {
         var ref = await db.collection('responses').add({
-            formId: formId, respondentUid: Naqsh.APP.user ? Naqsh.APP.user.uid : null,
-            respondentEmail: respEmail, respondentName: Naqsh.APP.userData ? Naqsh.APP.userData.name : '',
-            answers: answers, totalPoints: totalPoints, evaluationResult: evalResult,
+            formId: formId,
+            respondentUid: Naqsh.APP.user ? Naqsh.APP.user.uid : null,
+            respondentEmail: respEmail,
+            respondentName: respName,
+            answers: answers,
+            totalPoints: totalPoints,
+            evaluationResult: evalResult,
+            isAnonymous: Naqsh.APP.user ? !!Naqsh.APP.user.isAnonymous : true,
             createdAt: firebase.firestore.FieldValue.serverTimestamp()
         });
         await db.collection('forms').doc(formId).update({ responseCount: firebase.firestore.FieldValue.increment(1) });
-        Naqsh.PublicForm._showResult(form.title, Naqsh.APP.userData ? Naqsh.APP.userData.name : '', new Date().toLocaleString('ar-EG'), totalPoints, evalResult, ref.id);
-    } catch (e) { Naqsh.Utils.showToast('خط
+        Naqsh.PublicForm._showResult(form.title, respName, new Date().toLocaleString('ar-EG'), totalPoints, evalResult, ref.id);
+    } catch (e) {
+        Naqsh.Utils.showToast('خطأ في الحفظ: ' + e.message);
+    }
+};
+
+Naqsh.PublicForm._showResult = function(formTitle, userName, date, score, evalResult, responseId) {
+    var c = document.getElementById('publicContent');
+    var hasEval = evalResult && evalResult.label;
+    var h = '<div class="fade-in" style="text-align:center;padding:60px 16px">' +
+        '<div style="width:80px;height:80px;border-radius:50%;background:#dcfce7;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:36px;color:#059669"><i class="fa-solid fa-check"></i></div>' +
+        '<h1 style="font-size:24px;font-weight:900;margin-bottom:8px;color:#065f46">تم إرسال إجاباتك بنجاح</h1>';
+    if (hasEval) {
+        h += '<div style="margin:20px auto;max-width:400px;padding:20px;border-radius:14px;background:' + evalResult.color + '11;border:2px solid ' + evalResult.color + '44">' +
+            '<div style="font-size:14px;font-weight:700;color:' + evalResult.color + ';margin-bottom:8px">' + E(evalResult.label) + '</div>' +
+            '<p style="font-size:13px;color:var(--fg);line-height:1.8">' + E(evalResult.message) + '</p></div>';
+    } else {
+        h += '<p style="color:var(--muted);font-size:14px;margin-bottom:8px">مجموع النقاط: <strong style="color:var(--accent)">' + score + '</strong></p>';
+    }
+    h += '<div style="margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap">' +
+        '<button class="btn btn-primary" onclick="Naqsh.ShareCard.generate(\'' + responseId + '\',\'' + E(formTitle).replace(/'/g, "\\'") + '\',\'' + E(userName).replace(/'/g, "\\'") + '\',\'' + date + '\',' + score + ',\'' + E(evalResult.label || '').replace(/'/g, "\\'") + '\',\'' + E(evalResult.message || '').replace(/'/g, "\\'") + '\',\'' + (evalResult.color || '#0d7c66') + '\')"><i class="fa-solid fa-image"></i>حفظ/مشاركة بطاقة النتيجة</button>' +
+        '<button class="btn btn-outline" onclick="window.location.reload()"><i class="fa-solid fa-rotate-right"></i>ملء مرة أخرى</button></div></div>' +
+        '<div id="shareCardTarget"></div>';
+    c.innerHTML = h;
+};
