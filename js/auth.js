@@ -71,12 +71,16 @@ Naqsh.Auth = {
      * هل Firebase جاهز للعمل؟
      */
     _firebaseReady: function() {
-        if (typeof firebase === 'undefined' || !firebase.auth) {
-            Naqsh.Utils.showToast('Firebase لم يتم تحميله — تحقق من js/config.js', 'error');
+    try {
+        if (typeof firebase === 'undefined' || !firebase.auth || !firebase.apps.length) {
+            Naqsh.Utils.showToast('Firebase غير مهيأ — لن تعمل المصادقة لكن يمكنك تجربة الواجهة', 'warning');
             return false;
         }
         return true;
-    },
+    } catch(e) {
+        return false;
+    }
+},
 
     _showError: function(msg) {
         var el = document.getElementById('authError');
