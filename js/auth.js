@@ -1,6 +1,5 @@
 /**
  * auth.js — المصادقة + التوجيه الذكي
- * التغيير الأساسي: زوار الاستمارات لا يُجبرون على تسجيل الدخول
  */
 
 window.Naqsh = window.Naqsh || {};
@@ -36,25 +35,18 @@ Naqsh.Auth = {
     signOut: function() {
         Naqsh.Utils.destroyCharts();
         if (typeof auth !== 'undefined') auth.signOut();
-        // مسح هوية الزائر عند الخروج
         localStorage.removeItem('naqsh_visitor');
     },
 
-    /**
-     * تسجيل دخول تلقائي كزائر (anonymous) — بدون شاشة تسجيل
-     * يُستخدم حين يفتح شخص رابط استمارة وليس مسجلاً
-     */
     autoSignInAsVisitor: function(name, email) {
         return auth.signInAnonymously().then(function(result) {
             var uid = result.user.uid;
-            // حفظ الهوية في localStorage
             localStorage.setItem('naqsh_visitor', JSON.stringify({
                 uid: uid,
                 name: name,
                 email: email,
                 ts: Date.now()
             }));
-            // حفظ/تحديث مستند المستخدم في Firestore
             return db.collection('users').doc(uid).set({
                 name: name,
                 email: email,
@@ -67,20 +59,17 @@ Naqsh.Auth = {
         });
     },
 
-    /**
-     * هل Firebase جاهز للعمل؟
-     */
     _firebaseReady: function() {
-    try {
-        if (typeof firebase === 'undefined' || !firebase.auth || !firebase.apps.length) {
-            Naqsh.Utils.showToast('Firebase غير مهيأ — لن تعمل المصادقة لكن يمكنك تجربة الواجهة', 'warning');
+        try {
+            if (typeof firebase === 'undefined' || !firebase.auth || !firebase.apps.length) {
+                Naqsh.Utils.showToast('Firebase غير مهيأ — لن تعمل المصادقة', 'warning');
+                return false;
+            }
+            return true;
+        } catch(e) {
             return false;
         }
-        return true;
-    } catch(e) {
-        return false;
-    }
-},
+    },
 
     _showError: function(msg) {
         var el = document.getElementById('authError');
@@ -102,16 +91,11 @@ Naqsh.Auth = {
         el._timer = setTimeout(function() { el.style.display = 'none'; }, 6000);
     },
 
-    /**
-     * مراقبة حالة المصادقة
-     */
     init: function() {
         auth.onAuthStateChanged(async function(user) {
             var APP = Naqsh.APP;
 
-            // ===== حالة: المستخدم ليس مسجلاً =====
             if (!user) {
-                // هل يحاول فتح استمارة؟ لا تمنعه — واجهة الملء ستتعامل مع الأمر
                 var params = new URLSearchParams(window.location.search);
                 var formId = params.get('form');
                 if (formId) {
@@ -119,23 +103,20 @@ Naqsh.Auth = {
                     Naqsh.Router.showView('public');
                     return;
                 }
-                // ليس عنده رابط استمارة وليس مسجلاً → شاشة تسجيل الدخول
                 Naqsh.Router.showView('auth');
                 return;
             }
 
             APP.user = user;
 
-            // ===== المستخدم مسجل (حقيقي أو anonymous) =====
             var userDoc = await db.collection('users').doc(user.uid).get();
 
             if (!userDoc.exists) {
-                // مستخدم جديد غير anonymous → أنشئ حسابه
                 var allUsers = await db.collection('users').get();
                 var role = (user.email === ADMIN_EMAIL || allUsers.empty) ? 'admin' : 'responder';
 
                 await db.collection('users').doc(user.uid).set({
-                    name: user.displayName || user.isAnonymous ? 'زائر' : '',
+                    name: (user.displayName || (user.isAnonymous ? 'زائر' : '')),
                     email: user.email || '',
                     role: role,
                     assignedForms: [],
@@ -143,12 +124,11 @@ Naqsh.Auth = {
                     isAnonymous: !!user.isAnonymous,
                     createdAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
-                APP.userData = { name: user.displayName || 'زائر', email: user.email || '', role: role, assignedForms: [], photoURL: user.photoURL || '', isAnonymous: !!user.isAnonymous };
+                APP.userData = { name: (user.displayName || (user.isAnonymous ? 'زائر' : '')), email: user.email || '', role: role, assignedForms: [], photoURL: user.photoURL || '', isAnonymous: !!user.isAnonymous };
             } else {
                 APP.userData = userDoc.data();
             }
 
-            // تحديث الاسم والصورة
             if (user.displayName && user.displayName !== APP.userData.name) {
                 await db.collection('users').doc(user.uid).update({ name: user.displayName });
                 APP.userData.name = user.displayName;
@@ -158,26 +138,21 @@ Naqsh.Auth = {
                 APP.userData.photoURL = user.photoURL;
             }
 
-            // ترقية حساب المدير تلقائياً
             if (user.email === ADMIN_EMAIL && APP.userData.role !== 'admin') {
                 await db.collection('users').doc(user.uid).update({ role: 'admin' });
                 APP.userData.role = 'admin';
             }
 
-            // ===== التوجيه حسب الحالة =====
             var params = new URLSearchParams(window.location.search);
             var formId = params.get('form');
 
             if (formId && APP.userData.role === 'responder') {
-                // مسجل كمستجيب + عنده رابط استمارة → املأها
                 APP.publicFormId = formId;
                 Naqsh.Router.showView('public');
             } else if (formId && APP.userData.role !== 'responder') {
-                // مدير أو مستشار فتح رابط استمارة → اعرضها في وضع المعاينة (أو املأها)
                 APP.publicFormId = formId;
                 Naqsh.Router.showView('public');
             } else {
-                // لا يوجد رابط استمارة → اذهب لداشبورد حسب الدور
                 Naqsh.Router.showView(APP.userData.role);
             }
         });
