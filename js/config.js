@@ -9,7 +9,7 @@
  */
 
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-const firebaseConfig = {
+var firebaseConfig = {
   apiKey: "AIzaSyA5I_uukcIg99WKfsPZ3sIvDzaZmj_AYD4",
   authDomain: "naqsh-system-258.firebaseapp.com",
   projectId: "naqsh-system-258",
@@ -30,8 +30,8 @@ if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length ===
         db = firebase.firestore();
         console.log('✅ Firebase جاهز');
     } catch (err) {
-        console.warn('⚠️ Firebase لم يُهيأ بعد:', err.message);
-        console.warn('   التطبيق سيعمل بالوضع التجريبي لكن بدون مصادقة أو قاعدة بيانات.');
+        console.warn('⚠️ Firebase غير مهيأ بعد: ' + err.message);
+        console.warn('   التطبيق يعمل بدون Firebase لكن بدون مصادحة بيانات');
     }
 } else if (typeof firebase !== 'undefined' && firebase.apps && firebase.apps.length > 0) {
     // Firebase تم تهيئته بالفعل (مثلاً من امتداد آخر)
