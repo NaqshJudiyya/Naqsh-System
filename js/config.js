@@ -6,19 +6,21 @@
  */
 
 // ===== إعدادات Firebase — استبدلها =====
+// Your web app's Firebase configuration
+// For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-    apiKey: "YOUR_API_KEY",
-    authDomain: "YOUR_PROJECT.firebaseapp.com",
-    projectId: "YOUR_PROJECT_ID",
-    storageBucket: "YOUR_PROJECT.appspot.com",
-    messagingSenderId: "YOUR_SENDER_ID",
-    appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyA5I_uukcIg99WKfsPZ3sIvDzaZmj_AYD4",
+  authDomain: "naqsh-system-258.firebaseapp.com",
+  projectId: "naqsh-system-258",
+  storageBucket: "naqsh-system-258.firebasestorage.app",
+  messagingSenderId: "1090657585429",
+  appId: "1:1090657585429:web:144a5369a628057713011c",
+  measurementId: "G-Y80MT5H593"
 };
 
-// ===== تهيئة Firebase =====
-firebase.initializeApp(firebaseConfig);
-const auth = firebase.auth();
-const db = firebase.firestore();
+// Initialize Firebase
+const app = initializeApp(firebaseConfig);
+const analytics = getAnalytics(app);
 
 // ===== بريد المدير المعتمد =====
 const ADMIN_EMAIL = 'NaqshJudiyya@gmail.com';
