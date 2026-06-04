@@ -244,9 +244,8 @@ Naqsh.PublicForm._renderForm = function(form) {
     Naqsh.PublicForm._updateProg();
 
     // ربط زر الإرسال — آمنع مشاكل escaping
-    document.getElementById('submitBtn').addEventListener('click'), function() {
-        Naqsh.PublicForm._submit(form.id);
-    });
+    document.getElementById('submitBtn').addEventListener('click', function() {
+    Naqsh.PublicForm._submit(form.id); });
 };
 
 // ===== دوال اختيار الأسئلة =====
