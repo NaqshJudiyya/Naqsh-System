@@ -40,30 +40,27 @@ Naqsh.Router = {
      * إظهار واجهة محددة وإخفاء الباقي
      */
     showView: function(viewName) {
-        var APP = Naqsh.APP;
-        var ids = ['authView', 'adminView', 'counselorView', 'responderView', 'publicView'];
-        for (var i = 0; i < ids.length; i++) {
-            var el = document.getElementById(ids[i]);
-            el.style.display = 'none';
-        }
-        var targetId = this.viewMap[viewName];
-        var target = document.getElementById(targetId);
-        target.style.display = (viewName === 'auth') ? 'flex' : 'block';
+    var ids = ['authView', 'adminView', 'counselorView', 'responderView', 'publicView'];
+    for (var i = 0; i < ids.length; i++) {
+        document.getElementById(ids[i]).style.display = 'none';
+    }
+    var target = document.getElementById(this.viewMap[viewName]);
+    target.style.display = (viewName === 'auth') ? 'flex' : 'block';
 
-        // إعداد واجهة المستخدم
-        if (viewName === 'admin') {
-            this._setUserInfo('admin');
-            this.switchTab('admin', 'forms');
-        } else if (viewName === 'counselor') {
-            this._setUserInfo('counselor');
-            this.switchTab('counselor', 'c-forms');
-        } else if (viewName === 'responder') {
-            this._setUserInfo('responder');
-            this.switchTab('responder', 'r-history');
-        } else if (viewName === 'public') {
-            Naqsh.PublicForm.load();
-        }
-    },
+    if (viewName === 'admin') {
+        this._setUserInfo('admin');
+        this.switchTab('admin', 'forms');
+    } else if (viewName === 'counselor') {
+        this._setUserInfo('counselor');
+        this.switchTab('counselor', 'c-forms');
+    } else if (viewName === 'responder') {
+        this._setUserInfo('responder');
+        this.switchTab('responder', 'r-history');
+    } else if (viewName === 'public') {
+        // لا تتطلب تسجيل دخول — public-form.js يتعامل مع الأمر
+        Naqsh.PublicForm.load();
+    }
+},
 
     /**
      * تحديث اسم وصورة المستخدم في الشريط الجانبي
