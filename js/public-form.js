@@ -1,5 +1,5 @@
 /**
- * public-form.js — واجهة الملء + بواب تسجيل/تسجيل دخول + إرسال مضمون
+ * public-form.js — واجهة الملء + بواب تسجيل/تسجيل دخول + إرسال يعمل
  */
 
 window.Naqsh = window.Naqsh || {};
@@ -10,7 +10,6 @@ var E = Naqsh.Utils.esc;
 Naqsh.PublicForm.load = async function() {
     var c = document.getElementById('publicContent');
     c.innerHTML = '<div style="text-align:center;padding:80px"><i class="fa-solid fa-spinner fa-spin" style="font-size:24px;color:var(--accent)"></i></div>';
-
     try {
         var d = await db.collection('forms').doc(Naqsh.APP.publicFormId).get();
         if (!d.exists) {
@@ -19,11 +18,9 @@ Naqsh.PublicForm.load = async function() {
         }
         var form = d.data();
         if (!form.published) {
-            c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-lock" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d1"></i><h2>غير متاحة</h2></div>';
+            c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-lock" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d3d1"></i><h2>غير متاحة حالياً</h2></div>';
             return;
         }
-
-        // القرار: هل المستخدم مسجل بحساب حقيقي؟
         var user = Naqsh.APP.user;
         if (user && !user.isAnonymous) {
             Naqsh.PublicForm._renderForm(form);
@@ -38,53 +35,42 @@ Naqsh.PublicForm.load = async function() {
 // ===== بواب التسجيل/الدخول =====
 Naqsh.PublicForm._showAuthGate = function(form) {
     var c = document.getElementById('publicContent');
-
-    // هل لدينا بيانات محفوظة؟
     var saved = null;
     try { saved = JSON.parse(localStorage.getItem('naqsh_visitor')); } catch(e) {}
     if (saved && (Date.now() - saved.ts > 30 * 24 * 60 * 60 * 1000)) saved = null;
 
-    var h = '<div class="fade-in"><div class="card" style="max-width:460px;margin:40px auto;border-right:4px solid var(--accent)">' +
-
+    var h = '<div class="fade-in">' +
+        '<div class="card" style="max-width:460px;margin:40px auto;border-right:4px solid var(--accent)">' +
         '<div style="text-align:center;margin-bottom:24px">' +
         '<div style="width:56px;height:56px;border-radius:14px;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;margin:0 auto 14px;font-size:22px;color:#fff;box-shadow:0 4px 16px rgba(13,124,102,.3)"><i class="fa-solid fa-clipboard-list"></i></div>' +
         '<h1 style="font-size:20px;font-weight:900;margin-bottom:4px">' + E(form.title) + '</h1>' +
         '<p style="font-size:12px;color:var(--muted);line-height:1.7;margin-bottom:0">' + E(form.description || '') + '</p></div>' +
-
         '<div style="background:var(--bg);border-radius:12px;padding:20px;margin-bottom:20px">' +
         '<h3 style="font-size:14px;font-weight:700;margin-bottom:14px;display:flex;align-items:center;gap:8px">' +
         '<i class="fa-solid fa-user-shield" style="color:var(--accent)"></i>تسجيل الدخول أو إنشاء حساب جديد</h3>' +
         '<p style="font-size:11px;color:var(--muted);margin-bottom:16px;line-height:1.7">بياناتك محفوظة بخصوصية تامة ولن تُستخدم إلا لعرض سجلك الشخصي.</p>' +
-
         '<div style="margin-bottom:10px"><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">الاسم الكامل <span style="color:var(--danger)">*</span></label>' +
         '<input class="input" id="gateName" type="text" placeholder="مثال: أحمد محمد" value="' + E(saved ? saved.name : '') + '"></div>' +
-
         '<div style="margin-bottom:10px"><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">البريد الإلكتروني <span style="color:var(--danger)">*</span></label>' +
         '<input class="input" id="gateEmail" type="email" placeholder="example@mail.com" value="' + E(saved ? saved.email : '') + '" dir="ltr" style="text-align:right"></div>' +
-
         '<div style="margin-bottom:16px"><label style="font-size:13px;font-weight:600;display:block;margin-bottom:5px">كلمة المرور <span style="color:var(--danger)">*</span></label>' +
         '<input class="input" id="gatePass" type="password" placeholder="6 أحرف على الأقل" autocomplete="new-password"></div>' +
-
         '<div id="gateError" style="display:none;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:14px;font-size:12px;color:#dc2626"></div>' +
-
-        '<button class="btn btn-primary btn-full" style="padding:14px;font-size:15px;margin-bottom:10px" id="gateSubmitBtn" onclick="Naqsh.PublicForm._handleAuth()">' +
+        '<button class="btn btn-primary btn-full" style="padding:14px;font-size:15px;margin-bottom:10px" id="gateBtn">' +
         '<i class="fa-solid fa-arrow-left"></i>متابعة وملء الاستمارة</button>' +
         '</div>' +
-
         '<div style="display:flex;align-items:center;gap:6px;justify-content:center;font-size:11px;color:var(--muted)"><i class="fa-solid fa-lock" style="font-size:10px"></i>بياناتك محمية ولا تُشارك مع أي طرف</div>' +
         '</div></div>';
-
     c.innerHTML = h;
 
-    // Enter للتنقل بين الحقول
-    var fields = ['gateName', 'gateEmail', 'gatePass'];
-    fields.forEach(function(id, i) {
+    // تنقل Enter بين الحقول
+    ['gateName', 'gateEmail', 'gatePass'].forEach(function(id, i, arr) {
         var el = document.getElementById(id);
         if (el) el.addEventListener('keydown', function(e) {
             if (e.key === 'Enter') {
-                var next = fields[i + 1];
+                var next = arr[i + 1];
                 if (next) document.getElementById(next).focus();
-                else document.getElementById('gateSubmitBtn').click();
+                else document.getElementById('gateBtn').click();
             }
         });
     });
@@ -93,26 +79,24 @@ Naqsh.PublicForm._showAuthGate = function(form) {
 Naqsh.PublicForm._handleAuth = async function() {
     var name = document.getElementById('gateName').value.trim();
     var email = document.getElementById('gateEmail').value.trim();
-    var pass = document.getElementById('gatePass').value;
+    var pass = document.getElementById('Pass').value;
     var errEl = document.getElementById('gateError');
     errEl.style.display = 'none';
 
     if (!name) { errEl.textContent = 'أدخل اسمك'; errEl.style.display = 'block'; document.getElementById('gateName').focus(); return; }
     if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { errEl.textContent = 'أدخل بريد إلكتروني صحيح'; errEl.style.display = 'block'; document.getElementById('gateEmail').focus(); return; }
-    if (pass.length < 6) { errEl.textContent = 'كلمة المرور يجب أن تكون 6 أحرف على الأقل'; errEl.style.display = 'block'; document.getElementById('gatePass').focus(); return; }
+    if (pass.length < 6) { errEl.textContent = 'كلمة المرور 6 أحرف على الأقل'; errEl.style.display = 'block'; document.getElementById('gatePass').focus(); return; }
 
-    var btn = document.getElementById('gateSubmitBtn');
+    var btn = document.getElementById('gateBtn');
     btn.disabled = true;
     btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جارٍ التحقق...';
 
     try {
-        // محاولة تسجيل الدخول أولاً (الحساب ممكن يكون موجوداً)
+        // محاولة تسجيل الدخول أولاً
         var credential = firebase.auth.EmailAuthProvider.credential(email, pass);
         try {
             var result = await auth.signInWithCredential(credential);
-            // نجح الدخول
             var uid = result.user.uid;
-            // حفظ/تحديث في Firestore
             var doc = await db.collection('users').doc(uid).get();
             if (!doc.exists) {
                 await db.collection('users').doc(uid).set({
@@ -124,7 +108,7 @@ Naqsh.PublicForm._handleAuth = async function() {
                 await db.collection('users').doc(uid).update({ name: name });
             }
             Naqsh.APP.user = result.user;
-            Naqsh.APP.userData = Object.assign({}, doc.exists ? doc.data() : {}, { name: name, email: email, role: 'responder' });
+            Naqsh.APP.userData = Object.assign({}, doc.exists ? doc.data() : {}, { name: name, email: email, role: 'responder', isAnonymous: false });
             localStorage.setItem('naqsh_visitor', JSON.stringify({ uid: uid, name: name, email: email, ts: Date.now() }));
             Naqsh.PublicForm._renderForm((await db.collection('forms').doc(Naqsh.APP.publicFormId).get()).data());
 
@@ -144,24 +128,21 @@ Naqsh.PublicForm._handleAuth = async function() {
                     localStorage.setItem('naqsh_visitor', JSON.stringify({ uid: uid, name: name, email: email, ts: Date.now() }));
                     Naqsh.PublicForm._renderForm((await db.collection('forms').doc(Naqsh.APP.publicFormId).get()).data());
                 } catch (createErr) {
-                    errEl.textContent = 'فشل التسجيل: ' + (createErr.message || 'تحقق من تفعيل Email/Password في Firebase Console');
+                    errEl.textContent = 'فشل الإنشاء: ' + (createErr.message || 'تأكد من تفعيل Email/Password في Firebase Console');
                     errEl.style.display = 'block';
-                    btn.disabled = false;
-                    btn.innerHTML = '<i class="fa-solid fa-arrow-left"></i>متابعة وملء الاستمارة';
                 }
             } else {
                 errEl.textContent = 'خطأ: ' + signInErr.message;
                 errEl.style.display = 'block';
-                btn.disabled = false;
-                btn.innerHTML = '<i class="fa-solid fa-arrow-left"></i>متابعة وملء الاستمارة';
             }
         }
     } catch (err) {
-        errEl.textContent = 'حدث خطأ غير متوقع — تحقق من Console (F12)';
+        errEl.textContent = 'حدث خطأ غير متوقع';
         errEl.style.display = 'block';
+        console.error('Auth gate error:', err);
+    } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="fa-solid fa-arrow-left"></i>متابعة وملء الاستمارة';
-        console.error('Auth gate error:', err);
     }
 };
 
@@ -173,12 +154,12 @@ Naqsh.PublicForm._renderForm = function(form) {
     window._pubSel = {};
     window._pubChk = {};
 
-    // تحية أعلى الفورم
     var userGreeting = '';
     if (Naqsh.APP.user && !Naqsh.APP.user.isAnonymous) {
         userGreeting = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 16px;background:var(--accent-light,#d1fae5);border-radius:10px">' +
-            (Naqsh.APP.userData.photoURL ? '<img src="' + Naqsh.APP.userData.photoURL + '" style="width:32px;height:32px;border-radius:8px;object-fit:cover">' : '<i class="fa-solid fa-user-check" style="color:var(--accent);font-size:16px"></i>') +
-            '<span style="font-size:13px;font-weight:600;color:var(--accent-dark,#064e3b)">مرحباً، ' + E(Naqsh.APP.userData.name || '') + '</span></div>';
+            (Naqsh.APP.userData.photoURL ? '<img src="' + Naqsh.APP.userData.photoURL + '" style="width:32px;height:32px;border-radius:8px;object-fit:cover">' :
+            '<i class="fa-solid fa-user-check" style="color:var(--accent);font-size:16px"></i>') +
+            '<span style="font-size:13px;font-weight:600;color:#064e3b">مرحباً، ' + E(Naqsh.APP.userData.name || '') + '</span></div>';
     } else if (Naqsh.APP.user && Naqsh.APP.user.isAnonymous) {
         userGreeting = '<div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;padding:10px 16px;background:var(--bg);border-radius:10px">' +
             '<i class="fa-solid fa-user" style="color:var(--muted);font-size:16px"></i>' +
@@ -193,7 +174,6 @@ Naqsh.PublicForm._renderForm = function(form) {
         '<p style="font-size:14px;color:var(--muted);line-height:1.8">' + E(form.description || '') + '</p></div>' +
         userGreeting;
 
-    // بناء الأسئلة
     qs.forEach(function(q, qi) {
         if (q.type === 'section_header') {
             h += '<div style="margin:28px 0 16px;padding:12px 16px;background:linear-gradient(90deg,var(--accent),transparent);border-radius:10px"><h2 style="font-size:17px;font-weight:800;color:#fff">' + E(q.text) + '</h2></div>';
@@ -205,7 +185,7 @@ Naqsh.PublicForm._renderForm = function(form) {
         if (['short_text', 'email', 'number'].indexOf(q.type) >= 0) {
             var itype = q.type === 'email' ? 'email' : q.type === 'number' ? 'number' : 'text';
             var autoVal = '';
-            if (q.type === 'email' && Naqsh.APP.userData && Naqsh.APP.userData.email) autoVal = ' value="' + E(Naqsh.APP.userData.email) + '"';
+            if (q.type === 'email' && Naqsh.APP.userData && Naqsh.APP.userData.email) autoVal = ' value="' + E(Naqsh.APP.userData.email) + '" readonly';
             h += '<input class="input" type="' + itype + '" data-qi="' + qi + '" oninput="Naqsh.PublicForm._updateProg()"' + autoVal + '>';
         } else if (q.type === 'paragraph') {
             h += '<textarea class="input" rows="3" data-qi="' + qi + '" oninput="Naqsh.PublicForm._updateProg()"></textarea>';
@@ -232,7 +212,8 @@ Naqsh.PublicForm._renderForm = function(form) {
             });
             h += '</div>';
         } else if (q.type === 'scale') {
-            h += '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap"><span style="font-size:11px;color:var(--muted);min-width:80px">' + E(q.scaleMinLabel) + '</span><div style="display:flex;gap:6px">';
+            h += '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">' +
+                '<span style="font-size:11px;color:var(--muted);min-width:80px">' + E(q.scaleMinLabel) + '</span><div style="display:flex;gap:6px">';
             for (var v = q.scaleMin; v <= q.scaleMax; v++) {
                 h += '<button class="scale-btn" onclick="Naqsh.PublicForm._selScale(this,' + qi + ',' + v + ')">' + v + '</button>';
             }
@@ -253,9 +234,8 @@ Naqsh.PublicForm._renderForm = function(form) {
             h += '</tbody></table></div>';
         }
         h += '</div>';
-    });
 
-    // زر الإرسال — مع تحميل مرئي
+    // زر الإرسال — باستخدام addEventListener بدل onclick لتجنب مشاكل escape
     h += '<button class="btn btn-primary" id="submitBtn" type="button" style="width:100%;padding:16px;font-size:16px;margin-top:8px;justify-content:center">' +
         '<i class="fa-solid fa-paper-plane"></i>إرسال الإجابات</button>' +
         '<p style="text-align:center;font-size:11px;color:var(--muted);margin-top:16px">نشكرك على وقتك</p></div>';
@@ -263,7 +243,7 @@ Naqsh.PublicForm._renderForm = function(form) {
     c.innerHTML = h;
     Naqsh.PublicForm._updateProg();
 
-    // ربط زر الإرسال بالدالة
+    // ربط زر الإرسال — آمنع مشاكل escaping
     document.getElementById('submitBtn').addEventListener('click', function() {
         Naqsh.PublicForm._submit(form.id);
     });
@@ -309,23 +289,32 @@ Naqsh.PublicForm._updateProg = function() {
     var qs = window._pubData.questions; var a = 0, t = 0;
     qs.forEach(function(q, qi) {
         if (q.type === 'section_header') return; t++; var ok = false;
-        if (['short_text', 'email', 'number', 'paragraph', 'date', 'time'].indexOf(q.type) >= 0) { var el = document.querySelector('[data-qi="' + qi + '"]'); if (el && el.value && el.value.trim()) ok = true; }
-        else if (q.type === 'dropdown') { var el = document.querySelector('select[data-qi="' + qi + '"]'); if (el && el.value) ok = true; }
-        else if (q.type === 'choice') { if (window._pubSel[qi]) ok = true; }
-        else if (q.type === 'checkbox') { if (window._pubChk[qi] && window._pubChk[qi].length) ok = true; }
-        else if (q.type === 'scale') { if (window._pubSel[qi]) ok = true; }
-        else if (q.type === 'matrix') { if (window._pubSel[qi] && Object.keys(window._pubSel[qi].value || {}).length) ok = true; }
+        if (['short_text', 'email', 'number', 'paragraph', 'date', 'time'].indexOf(q.type) >= 0) {
+            var el = document.querySelector('[data-qi="' + qi + '"]');
+            if (el && el.value && el.value.trim()) ok = true;
+        } else if (q.type === 'dropdown') {
+            var el = document.querySelector('select[data-qi="' + qi + '"]');
+            if (el && el.value) ok = true;
+        } else if (q.type === 'choice') {
+            if (window._pubSel[qi]) ok = true;
+        } else if (q.type === 'checkbox') {
+            if (window._pubChk[qi] && window._pubChk[qi].length) ok = true;
+        } else if (q.type === 'scale') {
+            if (window._pubSel[qi]) ok = true;
+        } else if (q.type === 'matrix') {
+            if (window._pubSel[qi] && Object.keys(window._pubSel[qi].value || {}).length) ok = true;
+        }
         if (ok) a++;
     });
-    var bar = document.getElementById('pubProg'); if (bar) bar.style.width = (t ? Math.round(a / t * 100) : 0) + '%';
+    var bar = document.getElementById('pubProg');
+    if (bar) bar.style.width = (t ? Math.round(a / t * 100) : 0) + '%';
 };
 
-// ===== الإرسال — مضمون في try/catch مع تحميل مرئي =====
+// ===== الإرسال — محميون من أخطاء مع تحميل مرئي =====
 Naqsh.PublicForm._submit = function(formId) {
     var btn = document.getElementById('submitBtn');
     if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> جارٍ الإرسال...'; }
 
-    // نستخدم setTimeout ليعطي المتصفح فرصة التحديث
     setTimeout(async function() {
         try {
             if (!window._pubData) { if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>إرسال الإجابات'; } return; }
@@ -334,7 +323,6 @@ Naqsh.PublicForm._submit = function(formId) {
             var answers = [];
             var totalPoints = 0;
 
-            // ١. التحقق من الإجابات المطلوبة
             for (var qi = 0; qi < qs.length; qi++) {
                 var q = qs[qi];
                 if (q.type === 'section_header') { answers.push(null); continue; }
@@ -363,12 +351,11 @@ Naqsh.PublicForm._submit = function(formId) {
                             setTimeout(function() { el.style.borderColor = ''; }, 2000);
                         }
                         Naqsh.Utils.showToast('أجب على جميع الأسئلة المطلوبة', 'warning');
-                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>إرسال الإجابات'; }
+                        if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>إعادة المحاولة'; }
                         return;
                     }
                 }
 
-                // ٢. بناء مصفوفة الإجابات
                 var ans = { questionId: q.id, type: q.type, value: null, points: 0 };
                 if (['short_text', 'email', 'number', 'paragraph', 'date', 'time'].indexOf(q.type) >= 0) {
                     var el = document.querySelector('[data-qi="' + qi + '"]');
@@ -396,7 +383,7 @@ Naqsh.PublicForm._submit = function(formId) {
                 answers.push(ans);
             }
 
-            // ٣. حساب التقييم
+            // حساب التقييم
             var respEmail = Naqsh.APP.userData ? Naqsh.APP.userData.email : '';
             var respName = Naqsh.APP.userData ? Naqsh.APP.userData.name : '';
             qs.forEach(function(q, qi) {
@@ -417,7 +404,7 @@ Naqsh.PublicForm._submit = function(formId) {
             }
             if (!evalResult.label && form.postSubmissionMessage) evalResult.message = form.postSubmissionMessage;
 
-            // ٤. الحفظ
+            // الحفظ
             var ref = await db.collection('responses').add({
                 formId: formId,
                 respondentUid: Naqsh.APP.user ? Naqsh.APP.user.uid : null,
@@ -431,12 +418,12 @@ Naqsh.PublicForm._submit = function(formId) {
             });
             await db.collection('forms').doc(formId).update({ responseCount: firebase.firestore.FieldValue.increment(1) });
 
-            // ٥. عرض النتيجة
             Naqsh.PublicForm._showResult(form.title, respName, new Date().toLocaleString('ar-EG'), totalPoints, evalResult, ref.id);
 
         } catch (err) {
             console.error('Submit error:', err);
             Naqsh.Utils.showToast('خطأ في الإرسال: ' + err.message, 'error');
+        } finally {
             if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>إعادة المحاولة'; }
         }
     }, 50);
