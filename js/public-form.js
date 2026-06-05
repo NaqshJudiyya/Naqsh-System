@@ -96,7 +96,11 @@ Naqsh.PublicForm._handleAuth = async function() {
             Naqsh.APP.user = result.user;
             Naqsh.APP.userData = Object.assign({}, doc.exists ? doc.data() : {}, { name: name, email: email, role: 'responder', isAnonymous: false });
             localStorage.setItem('naqsh_visitor', JSON.stringify({ uid: uid, name: name, email: email, ts: Date.now() }));
-            Naqsh.PublicForm._renderForm((await db.collection('forms').doc(Naqsh.APP.publicFormId).get()).data());
+            
+            // ⬇️ التعديل هنا: دمج الـ ID مع البيانات
+            var formSnap = await db.collection('forms').doc(Naqsh.APP.publicFormId).get();
+            if(formSnap.exists) Naqsh.PublicForm._renderForm(Object.assign({ id: formSnap.id }, formSnap.data()));
+
         } catch (signInErr) {
             if (signInErr.code === 'auth/user-not-found' || signInErr.code === 'auth/invalid-credential' || signInErr.code === 'auth/wrong-password') {
                 try {
@@ -110,7 +114,11 @@ Naqsh.PublicForm._handleAuth = async function() {
                     Naqsh.APP.user = result.user;
                     Naqsh.APP.userData = { name: name, email: email, role: 'responder', isAnonymous: false };
                     localStorage.setItem('naqsh_visitor', JSON.stringify({ uid: uid, name: name, email: email, ts: Date.now() }));
-                    Naqsh.PublicForm._renderForm((await db.collection('forms').doc(Naqsh.APP.publicFormId).get()).data());
+                    
+                    // ⬇️ التعديل هنا: دمج الـ ID مع البيانات
+                    var formSnap = await db.collection('forms').doc(Naqsh.APP.publicFormId).get();
+                    if(formSnap.exists) Naqsh.PublicForm._renderForm(Object.assign({ id: formSnap.id }, formSnap.data()));
+
                 } catch (createErr) {
                     errEl.textContent = 'فشل الإنشاء: ' + (createErr.message || 'تأكد من تفعيل Email/Password في Firebase Console');
                     errEl.style.display = 'block';
@@ -371,6 +379,9 @@ Naqsh.PublicForm._submit = function(formId) {
             });
 
             var fd = await db.collection('forms').doc(formId).get();
+            if (!fd.exists) {
+                throw new Error("الاستمارة غير موجودة أو تم حذفها");
+            }
             var form = fd.data();
             var evalResult = { label: '', message: '', color: '#0d7c66' };
             if (form.evaluationRanges && form.evaluationRanges.length) {
