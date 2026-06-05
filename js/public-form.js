@@ -15,7 +15,9 @@ Naqsh.PublicForm.load = async function() {
             c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-circle-exclamation" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d1"></i><h2>الاستمارة غير موجودة</h2></div>';
             return;
         }
-        var form = d.data();
+        // ⬇️ التعديل هنا: دمج الـ ID مع البيانات
+        var form = Object.assign({ id: d.id }, d.data());
+        
         if (!form.published) {
             c.innerHTML = '<div style="text-align:center;padding:80px;color:var(--muted)"><i class="fa-solid fa-lock" style="font-size:48px;display:block;margin-bottom:16px;color:#d6d3d1"></i><h2>غير متاحة حالياً</h2></div>';
             return;
